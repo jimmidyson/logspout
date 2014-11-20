@@ -12,10 +12,13 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"code.google.com/p/go.net/websocket"
-	"github.com/fsouza/go-dockerclient"
+	docker "github.com/fsouza/go-dockerclient"
 	"github.com/go-martini/martini"
+
+	elastigo "github.com/mattbaird/elastigo/lib"
 )
 
 var debugMode bool
@@ -66,6 +69,42 @@ func syslogStreamer(target Target, types []string, logstream chan *Log) {
 		remote, err := syslog.Dial("udp", target.Addr, syslog.LOG_USER|syslog.LOG_INFO, tag)
 		assert(err, "syslog")
 		io.WriteString(remote, logline.Data)
+	}
+}
+
+func elasticsearchStreamer(target Target, types []string, logstream chan *Log) {
+	c := elastigo.NewConn()
+	c.SetHosts([]string{target.Addr})
+	indexer := c.NewBulkIndexerErrors(10, 1)
+	indexer.BufferDelayMax = 500 * time.Millisecond
+	indexer.BulkMaxDocs = 100
+	indexer.Start()
+	defer indexer.Stop()
+
+	go func() {
+		var errBuf *elastigo.ErrorBuffer
+		for errBuf = range indexer.ErrorChannel {
+			log.Println(errBuf.Err)
+		}
+	}()
+
+	const indexDatelayout = "2006.01.02"
+
+	typestr := "," + strings.Join(types, ",") + ","
+	for logline := range logstream {
+		if typestr != ",," && !strings.Contains(typestr, logline.Type) {
+			continue
+		}
+		tag := logline.Name + target.AppendTag
+		now := time.Now()
+		data := map[string]interface{}{
+			"@timestamp": now,
+			"host": tag,
+			"message": logline.Data,
+		}
+		index := "logstash-" + now.Format(indexDatelayout)
+		err := indexer.Index(index, "log", "", "", nil, data, false)
+		assert(err, "elasticsearch")
 	}
 }
 
