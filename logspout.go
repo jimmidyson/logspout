@@ -195,9 +195,10 @@ func main() {
 	router := NewRouteManager(attacher)
 
 	if len(os.Args) > 1 {
-		u, err := url.Parse(os.Args[1])
+		expandedUrl := os.ExpandEnv(os.Args[1])
+		u, err := url.Parse(expandedUrl)
 		assert(err, "url")
-		log.Println("routing all to " + os.Args[1])
+		log.Println("routing all to " + expandedUrl)
 		router.Add(&Route{Target: Target{Type: u.Scheme, Addr: u.Host}})
 	}
 
