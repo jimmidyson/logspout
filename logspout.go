@@ -153,7 +153,9 @@ func elasticsearchStreamer(target Target, types []string, logstream chan *Log) {
 		tmpMap["container"] = logline.Name
 		tmpMap["image"] = logline.Image
 		if len(k8sContainer.Pod) > 0 {
-			tmpMap["K8sContainer"] = k8sContainer
+			tmpMap["k8s_pod"] = k8sContainer.Pod
+			tmpMap["k8s_container"] = k8sContainer.Name
+			tmpMap["k8s_namespace"] = k8sContainer.Namespace
 		}
 		indexer.Index(index, "log", "", "", &now, tmpMap, false)
 		if debugMode {
