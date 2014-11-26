@@ -100,6 +100,23 @@ func elasticsearchStreamer(target Target, types []string, logstream chan *Log) {
 	indexer.BulkMaxDocs = 10
 	indexer.Start()
 	defer indexer.Stop()
+
+	go func() {
+		for err := range indexer.ErrorChannel {
+			log.Println("Error:", err)
+		}
+	}()
+
+	if debugMode {
+		go func() {
+			for {
+				log.Println("Number of pending docs:", indexer.PendingDocuments())
+				log.Println("Number of errors:", indexer.NumErrors())
+				time.Sleep(1 * time.Second)
+			}
+		}()
+	}
+
 	const indexDateStampLayout = "2006.01.02"
 	var tmpMap map[string]interface{}
 	for logline := range logstream {
@@ -122,6 +139,9 @@ func elasticsearchStreamer(target Target, types []string, logstream chan *Log) {
 		tmpMap["container"] = logline.Name
 		tmpMap["image"] = logline.Image
 		indexer.Index(index, "log", "", "", &now, tmpMap, false)
+		if debugMode {
+			log.Println("Indexed", tmpMap)
+		}
 	}
 }
 
