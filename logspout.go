@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -118,11 +119,24 @@ func elasticsearchStreamer(target Target, types []string, logstream chan *Log) {
 	}
 
 	const indexDateStampLayout = "2006.01.02"
+	k8sContainerRE := regexp.MustCompile(`^(?:[^_]+)_([^\.]+)\.(?:[^_]+)_([^\.]+)\.([^\.]+)`)
 	var tmpMap map[string]interface{}
 	for logline := range logstream {
 		if typestr != ",," && !strings.Contains(typestr, logline.Type) {
 			continue
 		}
+
+		k8sContainer := &K8sContainer{}
+		match := k8sContainerRE.FindStringSubmatch(logline.Name)
+		if len(match) > 0 {
+			k8sContainer.Pod = match[1]
+			k8sContainer.Name = match[2]
+			k8sContainer.Namespace = match[3]
+			debug("Found k8s container", k8sContainer)
+		} else {
+			debug("Not an k8s container", logline.Name)
+		}
+
 		now := time.Now()
 		index := "logstash-" + now.Format(indexDateStampLayout)
 		err := json.Unmarshal([]byte(logline.Data), &tmpMap)
@@ -138,6 +152,9 @@ func elasticsearchStreamer(target Target, types []string, logstream chan *Log) {
 		}
 		tmpMap["container"] = logline.Name
 		tmpMap["image"] = logline.Image
+		if len(k8sContainer.Pod) > 0 {
+			tmpMap["K8sContainer"] = k8sContainer
+		}
 		indexer.Index(index, "log", "", "", &now, tmpMap, false)
 		if debugMode {
 			log.Println("Indexed", tmpMap)
