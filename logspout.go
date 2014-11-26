@@ -129,8 +129,8 @@ func elasticsearchStreamer(target Target, types []string, logstream chan *Log) {
 		k8sContainer := &K8sContainer{}
 		match := k8sContainerRE.FindStringSubmatch(logline.Name)
 		if len(match) > 0 {
-			k8sContainer.Pod = match[1]
-			k8sContainer.Name = match[2]
+			k8sContainer.Name = match[1]
+			k8sContainer.Pod = match[2]
 			k8sContainer.Namespace = match[3]
 			debug("Found k8s container", k8sContainer)
 		} else {
