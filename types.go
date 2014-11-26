@@ -46,6 +46,12 @@ type Target struct {
 	AppendTag string `json:"append_tag,omitempty"`
 }
 
+type K8sContainer struct {
+	Name      string `json:"name"`
+	Pod       string `json:"pod"`
+	Namespace string `json:"namespace"`
+}
+
 func marshal(obj interface{}) []byte {
 	bytes, err := json.MarshalIndent(obj, "", "  ")
 	if err != nil {
